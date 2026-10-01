@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f5f2ec;
+  --color-surface: #fffefb;
+  --color-ink: #1b1917;
+  --color-muted: #6b655d;
+  --color-faint: #a39c92;
+  --color-line: #e3ddd3;
+  --color-brand: #d2202a;
+  --color-brand-dark: #ad1720;
+  --color-brand-tint: #fbeceb;
+  --color-leaf: #1c7a3f;
+  --color-leaf-tint: #e9f3ec;
+}
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+  --font-mono: var(--font-code);
+}
+
+/* ─── Base ─────────────────────────────────────────────── */
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgba(27, 25, 23, 0.45);
+}
+
+/* ─── Form fields ──────────────────────────────────────── */
+@layer components {
+  .field {
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-faint;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+}
+
+/* ─── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-faint);
+}
