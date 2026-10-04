@@ -14,51 +14,70 @@ interface SlotReelProps {
 const CARD_HEIGHT = 76; // Height of each candidate item card in pixels
 const VIEWPORT_HEIGHT = 228; // Exactly 3 visible items (76 * 3)
 const CENTER_OFFSET = (VIEWPORT_HEIGHT - CARD_HEIGHT) / 2; // 76px
-const TOTAL_DURATION = 10000; // 10-second countdown
-const WINNER_INDEX = 54; // Target item index where the winner lands
-const TOTAL_ITEMS = 60; // Total sequence length
+// ─── Spin timing (three phases, 14 seconds total) ───────────
+//   Phase 1:  0s →  5s  very fast
+//   Phase 2:  5s → 10s  noticeably slower
+//   Phase 3: 10s → 14s  very slow crawl, gently stopping on the winner
+const TOTAL_DURATION = 14000;
+const TOTAL_SECONDS = TOTAL_DURATION / 1000;
+const SLOW_PHASE_START = 10000; // When the final slow crawl begins
 
-/**
- * Closed-form analytical progress function P(t) in [0, 1]
- * Derived from integrating an acceleration -> cruise -> continuous power-deceleration curve.
- * Guarantees zero velocity discontinuity and butter-smooth motion across 10 seconds.
- */
+const FAST_SPEED = 25; // cards per second (phase 1)
+const MEDIUM_SPEED = 8; // cards per second (phase 2)
+const SLOW_SPEED = 2.5; // cards per second at the start of phase 3
+
+/** Smooth 0→1 easing used to blend between speeds without a visible jolt. */
+const ease = (x: number) => (1 - Math.cos(Math.PI * Math.min(1, Math.max(0, x)))) / 2;
+
+/** Reel velocity (cards/second) at time t (seconds). */
+function velocityAt(t: number): number {
+  if (t < 0.4) return FAST_SPEED * ease(t / 0.4); // quick spin-up
+  if (t < 5) return FAST_SPEED; // very fast
+  if (t < 5.8) return FAST_SPEED + (MEDIUM_SPEED - FAST_SPEED) * ease((t - 5) / 0.8);
+  if (t < 10) return MEDIUM_SPEED; // slower
+  if (t < 10.6) return MEDIUM_SPEED + (SLOW_SPEED - MEDIUM_SPEED) * ease((t - 10) / 0.6);
+  if (t < TOTAL_SECONDS) {
+    // very slow crawl, easing down to a full stop exactly at the end
+    const p = (t - 10.6) / (TOTAL_SECONDS - 10.6);
+    return SLOW_SPEED * Math.pow(1 - p, 1.3);
+  }
+  return 0;
+}
+
+// Pre-integrate the velocity curve (1ms resolution) into a cumulative distance table.
+const DISTANCE_TABLE: Float64Array = (() => {
+  const table = new Float64Array(TOTAL_DURATION + 1);
+  for (let ms = 1; ms <= TOTAL_DURATION; ms++) {
+    const tMid = (ms - 0.5) / 1000;
+    table[ms] = table[ms - 1] + velocityAt(tMid) / 1000;
+  }
+  return table;
+})();
+
+const TOTAL_CARDS_TRAVELLED = DISTANCE_TABLE[TOTAL_DURATION];
+const WINNER_INDEX = Math.round(TOTAL_CARDS_TRAVELLED); // Target item index where the winner lands
+const TOTAL_ITEMS = WINNER_INDEX + 6; // Total sequence length (a few names after the winner)
+
+/** Progress P(t) in [0, 1] along the reel, following the three-phase velocity curve. */
 function getIntegratedProgress(elapsed: number, totalDuration: number): number {
   if (elapsed <= 0) return 0;
   if (elapsed >= totalDuration) return 1;
 
-  const t1 = 2000; // Acceleration phase: 0 -> 2s
-  const t2 = 6200; // High-speed cruise phase: 2s -> 6.2s
-  const T = totalDuration; // Total: 10s
-  const alpha = 2.8; // Controlled deceleration ending cleanly at 10s
-
-  const area1 = t1 / 2;
-  const area2 = t2 - t1;
-  const area3 = (T - t2) / (alpha + 1);
-  const totalArea = area1 + area2 + area3;
-
-  if (elapsed <= t1) {
-    const a = 0.5 * (elapsed - (t1 / Math.PI) * Math.sin((Math.PI * elapsed) / t1));
-    return a / totalArea;
-  } else if (elapsed <= t2) {
-    const a = area1 + (elapsed - t1);
-    return a / totalArea;
-  } else {
-    const decelProgress = (elapsed - t2) / (T - t2);
-    const a = area1 + area2 + area3 * (1 - Math.pow(1 - decelProgress, alpha + 1));
-    return a / totalArea;
-  }
+  const lo = Math.floor(elapsed);
+  const frac = elapsed - lo;
+  const d = DISTANCE_TABLE[lo] + (DISTANCE_TABLE[lo + 1] - DISTANCE_TABLE[lo]) * frac;
+  return d / TOTAL_CARDS_TRAVELLED;
 }
 
 export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelProps) {
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'locked'>('idle');
-  const [countdown, setCountdown] = useState<number>(10);
+  const [countdown, setCountdown] = useState<number>(TOTAL_SECONDS);
   const [offsetY, setOffsetY] = useState<number>(CENTER_OFFSET);
 
   const animFrameRef = useRef<number>(0);
   const stopDrumrollRef = useRef<(() => void) | null>(null);
   const finishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastCountdownSecRef = useRef<number>(10);
+  const lastCountdownSecRef = useRef<number>(TOTAL_SECONDS);
   const lastTickIndexRef = useRef<number>(0);
   const whooshPlayedRef = useRef<boolean>(false);
 
@@ -105,17 +124,17 @@ export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelP
   // Total travel distance from item 0 to WINNER_INDEX
   const totalTravel = WINNER_INDEX * CARD_HEIGHT;
 
-  // ─── Main Animation Loop (10-second countdown + physics) ────
+  // ─── Main Animation Loop (14-second countdown + physics) ────
   useEffect(() => {
     if (!isSpinning || frozenStripRef.current.length === 0) return;
     whooshPlayedRef.current = false;
 
     let cancelled = false;
     const startTime = performance.now();
-    lastCountdownSecRef.current = 10;
+    lastCountdownSecRef.current = TOTAL_SECONDS;
     lastTickIndexRef.current = 0;
-    // Start audio drumroll with 10s suspense ramp
-    stopDrumrollRef.current = playDrumroll(10);
+    // Start audio drumroll ramping over the full spin
+    stopDrumrollRef.current = playDrumroll(TOTAL_SECONDS);
 
     const frame = (now: number) => {
       if (cancelled) return;
@@ -127,24 +146,25 @@ export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelP
       const currentY = CENTER_OFFSET - progress * totalTravel;
       setOffsetY(currentY);
 
-      // Audible mechanical tick on card boundaries
-      const tickStep = Math.floor((CENTER_OFFSET - currentY) / (CARD_HEIGHT * 0.75));
+      // Audible mechanical tick each time a new name passes the centre line
+      const tickStep = Math.floor((CENTER_OFFSET - currentY) / CARD_HEIGHT);
       if (tickStep !== lastTickIndexRef.current) {
         lastTickIndexRef.current = tickStep;
+        const slowWindow = TOTAL_DURATION - SLOW_PHASE_START;
         const remainingTime = Math.max(0, TOTAL_DURATION - elapsed);
-        const isDecelerating = remainingTime < 3500;
-        const tickPitch = isDecelerating ? 550 + (remainingTime / 3500) * 350 : 850;
+        const isDecelerating = elapsed >= SLOW_PHASE_START;
+        const tickPitch = isDecelerating ? 550 + (remainingTime / slowWindow) * 350 : 850;
         const tickVolume = isDecelerating ? 0.22 : 0.09;
         playTick(tickPitch, tickVolume);
       }
 
-      // Suspenseful whoosh entering final 3 seconds
-      if (elapsed >= 6800 && !whooshPlayedRef.current) {
+      // Suspenseful whoosh as the final slow crawl begins
+      if (elapsed >= SLOW_PHASE_START && !whooshPlayedRef.current) {
         whooshPlayedRef.current = true;
         playWhoosh();
       }
 
-      // Live 10-Second Countdown calculation
+      // Live countdown calculation
       const secondsLeft = Math.max(0, Math.ceil((TOTAL_DURATION - elapsed) / 1000));
       if (secondsLeft !== lastCountdownSecRef.current) {
         lastCountdownSecRef.current = secondsLeft;
@@ -177,7 +197,7 @@ export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelP
 
     animFrameRef.current = requestAnimationFrame((now) => {
       setPhase('spinning');
-      setCountdown(10);
+      setCountdown(TOTAL_SECONDS);
       frame(now);
     });
 
@@ -210,7 +230,7 @@ export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelP
     if (!isSpinning && !winner) {
       const handle = requestAnimationFrame(() => {
         setPhase('idle');
-        setCountdown(10);
+        setCountdown(TOTAL_SECONDS);
         setOffsetY(CENTER_OFFSET);
       });
       return () => cancelAnimationFrame(handle);
@@ -259,7 +279,7 @@ export function SlotReel({ pool, winner, isSpinning, onSpinComplete }: SlotReelP
         {isSpinning && (
           <div
             className="absolute top-0 left-0 z-30 h-0.5 bg-brand transition-[width] duration-1000 ease-linear"
-            style={{ width: `${(10 - countdown) * 10}%` }}
+            style={{ width: `${((TOTAL_SECONDS - countdown) / TOTAL_SECONDS) * 100}%` }}
           />
         )}
 
