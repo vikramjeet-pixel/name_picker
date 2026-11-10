@@ -3,6 +3,7 @@ export interface Participant {
   id: string;
   fullName: string;
   identifier?: string; // email, phone, or other identifier
+  address?: string;
   ticketId?: string;
 }
 
@@ -41,6 +42,7 @@ export interface AuditEntry {
 export interface ColumnMapping {
   fullName: string;
   identifier?: string;
+  address?: string;
   ticketId?: string;
 }
 

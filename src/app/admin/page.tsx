@@ -18,6 +18,7 @@ import { ImportSummary } from '@/components/csv-importer/ImportSummary';
 import { ParticipantTable } from '@/components/participants/ParticipantTable';
 import { PrizeManager } from '@/components/prizes/PrizeManager';
 import { DrawHistory } from '@/components/history/DrawHistory';
+import { WinnersList } from '@/components/history/WinnersList';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -954,8 +955,8 @@ export default function AdminPage() {
                     Results
                   </h2>
                   <p className="mt-1 text-sm text-muted">
-                    Every round is logged with its time, winner and SHA-256
-                    hash.
+                    Each winner&apos;s full name, phone and address, plus a log
+                    of every round with its SHA-256 hash.
                   </p>
                 </div>
 
@@ -976,6 +977,8 @@ export default function AdminPage() {
                   </Button>
                 </div>
               </div>
+
+              <WinnersList history={state.drawHistory} />
 
               <DrawHistory history={state.drawHistory} />
             </motion.div>

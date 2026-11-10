@@ -64,7 +64,7 @@ export function ColumnMapper({
         Check that each field points at the right column in your file.
       </p>
 
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SelectField
           label="Full name"
           value={mapping.fullName}
@@ -73,11 +73,19 @@ export function ColumnMapper({
           onChange={(v) => onMappingChange({ ...mapping, fullName: v })}
         />
         <SelectField
-          label="Email or phone"
+          label="Phone or email"
           value={mapping.identifier || ''}
           headers={headers}
           onChange={(v) =>
             onMappingChange({ ...mapping, identifier: v || undefined })
+          }
+        />
+        <SelectField
+          label="Address"
+          value={mapping.address || ''}
+          headers={headers}
+          onChange={(v) =>
+            onMappingChange({ ...mapping, address: v || undefined })
           }
         />
         <SelectField

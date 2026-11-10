@@ -26,6 +26,7 @@ export function ParticipantTable({ participants }: ParticipantTableProps) {
       (p) =>
         p.fullName.toLowerCase().includes(q) ||
         p.identifier?.toLowerCase().includes(q) ||
+        p.address?.toLowerCase().includes(q) ||
         p.ticketId?.toLowerCase().includes(q)
     );
   }, [participants, search]);
@@ -82,14 +83,15 @@ export function ParticipantTable({ participants }: ParticipantTableProps) {
             <tr className="border-b border-line">
               <th className={`${th} w-12`}>#</th>
               <th className={th}>Name</th>
-              <th className={th}>Email or phone</th>
+              <th className={th}>Phone or email</th>
+              <th className={th}>Address</th>
               <th className={th}>Ticket ID</th>
             </tr>
           </thead>
           <tbody>
             {pageData.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-8 text-muted">
+                <td colSpan={5} className="px-3 py-8 text-muted">
                   {search ? 'No entries match that search.' : 'No entries loaded.'}
                 </td>
               </tr>
@@ -102,6 +104,9 @@ export function ParticipantTable({ participants }: ParticipantTableProps) {
                   <td className="px-3 py-2.5 font-medium">{p.fullName}</td>
                   <td className="px-3 py-2.5 text-muted">
                     {p.identifier || '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-muted">
+                    {p.address || '—'}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-xs text-muted">
                     {p.ticketId || '—'}

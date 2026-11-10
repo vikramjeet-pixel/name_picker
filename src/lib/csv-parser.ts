@@ -10,6 +10,7 @@ export function autoDetectColumns(headers: string[]): ColumnMapping {
   const namePatterns = ['name', 'full name', 'fullname', 'participant', 'winner', 'person'];
   const identifierPatterns = ['email', 'phone', 'id', 'identifier', 'contact', 'mobile', 'tel', 'e-mail'];
   const ticketPatterns = ['ticket', 'ticket id', 'ticketid', 'ticket_id', 'ticket no', 'ticket number', 'serial'];
+  const addressPatterns = ['address', 'addr', 'street', 'location', 'city', 'area'];
 
   const findMatch = (patterns: string[]): string | undefined => {
     for (const pattern of patterns) {
@@ -24,6 +25,7 @@ export function autoDetectColumns(headers: string[]): ColumnMapping {
   return {
     fullName,
     identifier: findMatch(identifierPatterns),
+    address: findMatch(addressPatterns),
     ticketId: findMatch(ticketPatterns),
   };
 }
@@ -78,9 +80,10 @@ export function processParticipants(
 
     const identifier = mapping.identifier ? row[mapping.identifier]?.trim() : undefined;
     const ticketId = mapping.ticketId ? row[mapping.ticketId]?.trim() : undefined;
+    const address = mapping.address ? row[mapping.address]?.trim() : undefined;
 
     // Composite key for dedup
-    const key = `${fullName}|${identifier || ''}|${ticketId || ''}`.toLowerCase();
+    const key = `${fullName}|${identifier || ''}|${ticketId || ''}|${address || ''}`.toLowerCase();
 
     if (seen.has(key)) {
       duplicateCount++;
@@ -99,6 +102,7 @@ export function processParticipants(
       id,
       fullName,
       identifier: identifier || undefined,
+      address: address || undefined,
       ticketId: ticketId || undefined,
     });
   }
